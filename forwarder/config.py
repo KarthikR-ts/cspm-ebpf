@@ -29,3 +29,7 @@ class Config:
     # ── API Server ────────────────────────────────────────────────
     API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
     API_PORT: int = int(os.getenv("API_PORT", "8081"))
+
+    # ── ML Triage ─────────────────────────────────────────────────
+    ML_MODEL_PATH: str = os.getenv("ML_MODEL_PATH", "forwarder/model/xgboost_model.json")
+    FEATURE_LIST_PATH: str = os.getenv("FEATURE_LIST_PATH", "forwarder/model/feature_list.json")

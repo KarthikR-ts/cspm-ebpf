@@ -29,10 +29,11 @@ from pathlib import Path
 import uvicorn
 
 from .api import app as fastapi_app
-from .api import record_error, record_event, set_redis_status
+from .api import record_error, record_event, set_ml_triage, set_redis_status
 from .config import Config
 from .publisher import EventPublisher
 from .transformer import transform_event
+from .ml_triage import MLTriage
 
 # ── Logging Setup ─────────────────────────────────────────────────
 logging.basicConfig(
@@ -44,6 +45,7 @@ logger = logging.getLogger("sentinel.forwarder")
 
 # ── Globals ───────────────────────────────────────────────────────
 _shutdown = threading.Event()
+_ml_triage = None
 
 
 def start_api_server(config: Config) -> None:
@@ -73,6 +75,12 @@ def process_line(line: str, publisher: EventPublisher) -> None:
     if sentinel_event is None:
         return  # Not a relevant event type
 
+    # Run ML Triage if enabled
+    if _ml_triage:
+        triage_results = _ml_triage.triage_event(sentinel_event)
+        sentinel_event["triage"] = triage_results["triage"]
+        sentinel_event["explanation"] = triage_results["explanation"]
+
     # Publish to Redis (or stdout fallback)
     publisher.publish(sentinel_event)
 
@@ -80,8 +88,10 @@ def process_line(line: str, publisher: EventPublisher) -> None:
     record_event(sentinel_event)
 
     logger.info(
-        "📡 [%s] pid=%d binary=%s pod=%s",
+        "📡 [%s] grade=%s confidence=%s pid=%d binary=%s pod=%s",
         sentinel_event["event_type"],
+        sentinel_event.get("triage", {}).get("grade", "n/a") if sentinel_event.get("triage") else "n/a",
+        sentinel_event.get("triage", {}).get("confidence", "n/a") if sentinel_event.get("triage") else "n/a",
         sentinel_event["telemetry"]["pid"],
         sentinel_event["telemetry"]["binary"],
         sentinel_event["telemetry"].get("pod", "n/a"),
@@ -185,6 +195,13 @@ def main() -> None:
     # ── Publisher ─────────────────────────────────────────────────
     publisher = EventPublisher(config)
     set_redis_status(publisher.is_connected)
+
+    # ── ML Triage ─────────────────────────────────────────────────
+    _ml_triage = MLTriage(
+        model_path=Path(config.ML_MODEL_PATH),
+        feature_list_path=Path(config.FEATURE_LIST_PATH)
+    )
+    set_ml_triage(_ml_triage)
 
     # ── API Server (background thread) ────────────────────────────
     api_thread = threading.Thread(

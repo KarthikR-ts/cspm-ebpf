@@ -37,6 +37,13 @@ _metrics: dict[str, Any] = {
     "redis_connected": False,
 }
 _recent_events: deque[dict] = deque(maxlen=100)
+_ml_triage: Any = None
+
+
+def set_ml_triage(triage_instance: Any) -> None:
+    """Register the ML triage instance with the API."""
+    global _ml_triage
+    _ml_triage = triage_instance
 
 
 def record_event(event: dict) -> None:
@@ -101,4 +108,31 @@ async def event_stream_info():
         "redis_stream": "sentinel:events",
         "consume_command": "redis-cli XREAD BLOCK 0 STREAMS sentinel:events $",
         "api_latest": "/events/latest?limit=50",
+    }
+
+
+@app.post("/triage")
+async def triage_event(event: dict):
+    """
+    Accept an event and return a Unified Event Schema response.
+    
+    Deliverable: "This event is a 98% True Positive."
+    """
+    if _ml_triage is None:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "ML Triage service is not initialized."}
+        )
+    
+    # Run triage
+    results = _ml_triage.triage_event(event)
+
+    # Return full unified schema
+    return {
+        "event_id": event.get("event_id", "manual-triage"),
+        "telemetry": event.get("telemetry", event),
+        "triage": results.get("triage"),
+        "explanation": results.get("explanation"),
+        "remediation": None, # Future Advisor task
+        "deliverable": results.get("deliverable")
     }

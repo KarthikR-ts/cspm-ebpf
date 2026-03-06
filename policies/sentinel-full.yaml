@@ -1,0 +1,71 @@
+# Combined TracingPolicy for Sentinel-Core Demo
+# Monitors both process execution and network connections in a single policy
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: sentinel-full
+spec:
+  kprobes:
+    # ── Process Execution Monitoring ────────────────────────────────
+    - call: "__x64_sys_execve"
+      syscall: true
+      args:
+        - index: 0
+          type: "string"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "In"
+              values:
+                - "/usr/bin/curl"
+                - "/usr/bin/wget"
+                - "/bin/nc"
+                - "/usr/bin/nc"
+                - "/usr/bin/ncat"
+                - "/usr/bin/nmap"
+                - "/usr/bin/base64"
+                - "/bin/bash"
+                - "/bin/sh"
+                - "/usr/bin/python"
+                - "/usr/bin/python3"
+                - "/usr/bin/whoami"
+                - "/usr/bin/id"
+          matchActions:
+            - action: Post
+
+    # ── Outbound Network Connection Monitoring ─────────────────────
+    - call: "__x64_sys_connect"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"
+        - index: 1
+          type: "sockaddr"
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: "SAddr"
+              values:
+                - "AF_INET"
+          matchActions:
+            - action: Post
+
+    # ── File Write Monitoring (bonus: detect persistence attempts) ─
+    - call: "__x64_sys_write"
+      syscall: true
+      args:
+        - index: 0
+          type: "fd"
+        - index: 2
+          type: "size_t"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "Postfix"
+              values:
+                - ".ssh/authorized_keys"
+                - "/etc/crontab"
+                - "/etc/passwd"
+                - "/etc/shadow"
+          matchActions:
+            - action: Post

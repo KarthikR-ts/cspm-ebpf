@@ -1,0 +1,39 @@
+# TracingPolicy: Monitor process execution (execve)
+# Detects suspicious binary launches inside pods
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: sentinel-trace-execve
+spec:
+  kprobes:
+    - call: "__x64_sys_execve"
+      syscall: true
+      args:
+        - index: 0
+          type: "string"    # filename (path to binary)
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "In"
+              values:
+                - "/usr/bin/curl"
+                - "/usr/bin/wget"
+                - "/bin/nc"
+                - "/usr/bin/nc"
+                - "/usr/bin/ncat"
+                - "/usr/bin/nmap"
+                - "/usr/bin/base64"
+                - "/bin/bash"
+                - "/bin/sh"
+                - "/usr/bin/python"
+                - "/usr/bin/python3"
+                - "/usr/bin/perl"
+                - "/usr/bin/ruby"
+                - "/usr/bin/whoami"
+                - "/usr/bin/id"
+                - "/usr/bin/uname"
+                - "/usr/bin/cat"
+                - "/usr/bin/find"
+                - "/usr/bin/chmod"
+          matchActions:
+            - action: Post

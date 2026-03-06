@@ -1,0 +1,26 @@
+# Attacker simulation pod for Sentinel-Core demo
+# This pod runs common attack techniques to trigger TracingPolicy detections.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: attacker-pod
+  namespace: default
+  labels:
+    app: attacker-simulation
+    sentinel: demo
+spec:
+  containers:
+    - name: attacker
+      image: alpine:3.19
+      command: ["sleep", "3600"]  # Keep alive for interactive exec
+      securityContext:
+        runAsUser: 33           # www-data UID (simulate compromised web app)
+        runAsGroup: 33
+      resources:
+        limits:
+          cpu: "100m"
+          memory: "64Mi"
+        requests:
+          cpu: "50m"
+          memory: "32Mi"
+  restartPolicy: Never

@@ -1,0 +1,39 @@
+# TracingPolicy: Monitor outbound network connections (connect syscall)
+# Detects suspicious egress traffic from pods
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: sentinel-trace-connect
+spec:
+  kprobes:
+    - call: "__x64_sys_connect"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"         # socket fd
+        - index: 1
+          type: "sockaddr"    # destination address (includes IP + port)
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: "SAddr"
+              values:
+                - "AF_INET"   # Match all IPv4 connections
+          matchActions:
+            - action: Post
+    # Also trace TCP sendmsg for data exfiltration detection
+    - call: "tcp_sendmsg"
+      syscall: false
+      args:
+        - index: 0
+          type: "sock"        # socket structure
+        - index: 2
+          type: "int"         # message length
+      selectors:
+        - matchArgs:
+            - index: 2
+              operator: "GreaterThan"
+              values:
+                - "4096"      # Flag large outbound transfers (>4KB)
+          matchActions:
+            - action: Post

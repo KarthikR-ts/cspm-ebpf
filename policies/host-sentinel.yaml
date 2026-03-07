@@ -1,0 +1,50 @@
+# Host-Level TracingPolicy for Sentinel-Core
+# Monitors process execution of suspicious binaries on the host.
+# Compatible with standalone Tetragon v1.6.0 (no Kubernetes).
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: host-sentinel
+spec:
+  kprobes:
+    # ── Process Execution Monitoring ────────────────────────────────
+    - call: "__x64_sys_execve"
+      syscall: true
+      args:
+        - index: 0
+          type: "string"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "Equal"
+              values:
+                - "/usr/bin/curl"
+                - "/usr/bin/wget"
+                - "/bin/nc"
+                - "/usr/bin/nc"
+                - "/usr/bin/ncat"
+                - "/usr/bin/nmap"
+                - "/usr/bin/base64"
+                - "/usr/bin/whoami"
+                - "/usr/bin/id"
+                - "/usr/bin/cat"
+                - "/usr/bin/chmod"
+          matchActions:
+            - action: Post
+
+    # ── Outbound Network Connection Monitoring ─────────────────────
+    - call: "__x64_sys_connect"
+      syscall: true
+      args:
+        - index: 0
+          type: "int"
+        - index: 1
+          type: "sockaddr"
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: "Family"
+              values:
+                - "AF_INET"
+          matchActions:
+            - action: Post
